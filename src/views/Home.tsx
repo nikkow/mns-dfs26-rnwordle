@@ -1,15 +1,54 @@
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Keyboard } from '../components/Keyboard';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-const WORD = 'REACT';
 const MAX_ATTEMPTS = 6;
 const WORD_LENGTH = 5;
+const API_URL = `https://random-word-api.herokuapp.com/word?length=${WORD_LENGTH}&lang=fr`;
 
 export const Home = () => {
   const [attempts, setAttempts] = useState<string[]>([]);
   const [currentWord, setCurrentWord] = useState('');
+  const [wordToGuess, setWordToGuess] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadWord = async () => {
+    try {
+      const response = await fetch(API_URL);
+
+      if (!response.ok) {
+        throw new Error('Erreur API');
+      }
+
+      const data: string[] = await response.json();
+      if (data.length < 1) {
+        throw new Error('Données manquantes');
+      }
+
+      const randomWord = data[0]
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase();
+
+      setWordToGuess(randomWord);
+      setIsLoading(false);
+    } catch (error) {
+      console.log(error);
+      Alert.alert('Erreur', "Une erreur réseau s'est produite");
+    }
+  };
+
+  useEffect(() => {
+    loadWord();
+  }, []);
 
   const grid = useMemo(() => {
     const rows = [...attempts];
@@ -52,12 +91,12 @@ export const Home = () => {
     const newAttempts = [...attempts, currentWord];
     setAttempts(newAttempts);
 
-    if (currentWord === WORD) {
+    if (currentWord === wordToGuess) {
       Alert.alert('Bravo !', 'Vous avez trouvé le mot !');
     }
 
     if (newAttempts.length >= MAX_ATTEMPTS) {
-      Alert.alert('Perdu !', `Le mot était ${WORD}`);
+      Alert.alert('Perdu !', `Le mot était ${wordToGuess}`);
     }
 
     setCurrentWord('');
@@ -68,11 +107,11 @@ export const Home = () => {
       return 'empty';
     }
 
-    if (WORD[index] === letter) {
+    if (wordToGuess[index] === letter) {
       return 'correct';
     }
 
-    if (WORD.includes(letter)) {
+    if (wordToGuess.includes(letter)) {
       return 'present';
     }
 
@@ -80,9 +119,22 @@ export const Home = () => {
   };
 
   const resetGame = () => {
+    setIsLoading(true);
+    loadWord();
     setAttempts([]);
     setCurrentWord('');
   };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView
+        style={[styles.container, { justifyContent: 'center', gap: 8 }]}
+      >
+        <ActivityIndicator size="large" color="#FFFFFF" />
+        <Text style={styles.subtitle}>Chargement...</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <>
